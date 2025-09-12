@@ -37,8 +37,8 @@ function calcularCC() {
 function exibirResultados(medias, cc) {
   const container = document.getElementById('resultadosContainer');
   container.innerHTML = `
-    <h3>Nota Geral do Curso (CC): <strong>${cc.toFixed(2)}</strong></h3>
-    <h4>Notas por Dimensão:</h4>
+    <h3>Conceito do Curso (CC): <strong>${cc.toFixed(2)}</strong></h3>
+    <h4>Conceito por Dimensão:</h4>
     <ul>
       <li>Dimensão 1: ${medias.dim1.toFixed(2)}</li>
       <li>Dimensão 2: ${medias.dim2.toFixed(2)}</li>
@@ -82,7 +82,7 @@ function desenharGraficoIndicadores() {
     data: {
       labels: labels,
       datasets: [{
-        label: 'Nota por Indicador',
+        label: 'Conceito por Indicador',
         data: data,
         backgroundColor: cores
       }]
@@ -98,7 +98,7 @@ function desenharGraficoIndicadores() {
               return descricoesCompletas[index];
             },
             label: function(context) {
-              return `Nota: ${context.raw}`;
+              return `Conceito: ${context.raw}`;
             }
           }
         }
@@ -109,7 +109,7 @@ function desenharGraficoIndicadores() {
           max: 5,
           title: {
             display: true,
-            text: 'Nota'
+            text: 'Conceito'
           }
         },
         x: {
@@ -135,7 +135,7 @@ function listarCriticos() {
   div.innerHTML = '';
 
   const titulo = document.createElement('h5');
-  titulo.textContent = 'Indicadores com nota inferior a 3 (Análise de Sensibilidade):';
+  titulo.textContent = 'Indicadores com conceito inferior a 3 (Análise de Sensibilidade):';
   div.appendChild(titulo);
 
   if (criticos.length === 0) {
@@ -185,7 +185,7 @@ function listarCriticos() {
   thead.innerHTML = `
     <tr class="table-danger text-center">
       <th style="width: 50%; text-align:center; vertical-align:middle;">Indicador</th>
-      <th style="width: 25%; text-align:center; vertical-align:middle;">Nota</th>
+      <th style="width: 25%; text-align:center; vertical-align:middle;">Conceito</th>
       <th style="width: 25%; text-align:center; vertical-align:middle;">Sensibilidade no CC (%)</th>
     </tr>
   `;
@@ -281,6 +281,219 @@ function carregarDados(event) {
   };
 
   reader.readAsText(file);
+}
+
+async function gerarPDF() {
+  const contain = document.getElementById('resultadosContainer');
+
+  // 🔒 Verificação: só permite gerar se houver resultados
+  if (!contain || !contain.innerText.trim()) {
+    Toastify({
+      text: "⚠️ Primeiro calcule os resultados antes de gerar o PDF.",
+      duration: 4000,
+      gravity: "top",   // "top" ou "bottom"
+      position: "right", // "left", "center" ou "right"
+      backgroundColor: "#dc3545", // vermelho bootstrap
+      stopOnFocus: true
+    }).showToast();
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const margin = 15;
+  let y = 20;
+
+  // Helper: desenha o cabeçalho da tabela
+  function drawTableHeader() {
+    const headerHeight = 8;
+    const colWidths = { indicador: 100, nota: 30, sens: 50 };
+    const x = margin;
+
+    // Fundo vermelho
+    pdf.setFillColor(220, 53, 69);
+    pdf.setTextColor(255, 255, 255);
+    pdf.rect(x, y, colWidths.indicador, headerHeight, "F");
+    pdf.rect(x + colWidths.indicador, y, colWidths.nota, headerHeight, "F");
+    pdf.rect(x + colWidths.indicador + colWidths.nota, y, colWidths.sens, headerHeight, "F");
+
+    pdf.setFontSize(11);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Indicador", x + 2, y + 6);
+    pdf.text("Conceito", x + colWidths.indicador + colWidths.nota / 2, y + 6, { align: "center" });
+    pdf.text("Sensibilidade", x + colWidths.indicador + colWidths.nota + colWidths.sens / 2, y + 6, { align: "center" });
+
+    y += headerHeight;
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(0, 0, 0);
+
+    return colWidths;
+  }
+
+  // =========================
+  // Cabeçalho do relatório
+  // =========================
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("Relatório de Avaliação de Curso de Graduação", 105, y, { align: "center" });
+  y += 10;
+  pdf.text("Reconhecimento e Renovação de Reconhecimento", 105, y, { align: "center" });
+  y += 8;
+
+  pdf.setDrawColor(200, 200, 200);
+  pdf.line(margin, y, 210 - margin, y);
+  y += 10;
+
+  // =========================
+  // Informações do curso
+  // =========================
+  const nomeIes = document.getElementById('nomeIes').value || "Não informado";
+  const nomeCurso = document.getElementById('nomeCurso').value || "Não informado";
+
+  pdf.setFontSize(12);
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Instituição:", margin, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(nomeIes, margin + 35, y);
+  y += 7;
+
+  pdf.setFont("helvetica", "bold");
+  pdf.text("Curso:", margin, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(nomeCurso, margin + 35, y);
+  y += 12;
+
+  // =========================
+  // Nota Geral
+  // =========================
+  const container = document.getElementById('resultadosContainer');
+  if (container) {
+    const ccText = container.querySelector("h3 strong")?.innerText || "0.00";
+
+    pdf.setFontSize(14);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(`Conceito do Curso (CC): ${ccText}`, margin, y);
+    y += 10;
+
+    pdf.setDrawColor(200, 200, 200);
+    pdf.line(margin, y, 210 - margin, y);
+    y += 10;
+
+    // =========================
+    // Médias por dimensão
+    // =========================
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "bold");
+    pdf.text("Conceito por Dimensão:", margin, y);
+    y += 8;
+
+    const listaDim = container.querySelectorAll("ul li");
+    pdf.setFont("helvetica", "normal");
+    listaDim.forEach(li => {
+      pdf.text("• " + li.innerText, margin + 5, y);
+      y += 7;
+    });
+    y += 10;
+
+    pdf.line(margin, y, 210 - margin, y);
+    y += 10;
+
+    // =========================
+    // Tabela de indicadores críticos
+    // =========================
+    const tabela = container.querySelector("#indicadoresCriticos table");
+    if (tabela) {
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Indicadores Críticos (conceito < 3):", margin, y);
+      y += 8;
+
+      const rows = tabela.querySelectorAll("tbody tr");
+      const lineHeight = 6;
+
+      let colWidths = drawTableHeader();
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll("td");
+        const indicador = cells[0]?.innerText || "";
+        const nota = cells[1]?.innerText || "";
+        const sens = cells[2]?.innerText || "";
+
+        // Quebra texto do indicador
+        const textLines = pdf.splitTextToSize(indicador, colWidths.indicador - 4);
+        const rowHeight = textLines.length * lineHeight;
+
+        // Quebra de página
+        if (y + rowHeight > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          y = 20;
+          colWidths = drawTableHeader();
+        }
+
+        // Grid (borda de cada célula)
+        pdf.setDrawColor(180, 180, 180);
+        pdf.rect(margin, y, colWidths.indicador, rowHeight);
+        pdf.rect(margin + colWidths.indicador, y, colWidths.nota, rowHeight);
+        pdf.rect(margin + colWidths.indicador + colWidths.nota, y, colWidths.sens, rowHeight);
+
+        // Indicador (justificado)
+        for (let i = 0; i < textLines.length; i++) {
+          const line = textLines[i];
+          const lineY = y + (i + 1) * lineHeight - 2;
+
+          if (i === textLines.length - 1) {
+            pdf.text(line, margin + 2, lineY);
+          } else {
+            const words = line.split(/\s+/).filter(Boolean);
+            if (words.length === 1) {
+              pdf.text(words[0], margin + 2, lineY);
+            } else {
+              const lineWidth = pdf.getTextWidth(line);
+              const extraSpace = (colWidths.indicador - 4 - lineWidth) / (words.length - 1);
+              let cursor = margin + 2;
+              words.forEach((word, w) => {
+                pdf.text(word, cursor, lineY);
+                cursor += pdf.getTextWidth(word) + pdf.getTextWidth(" ") + extraSpace;
+              });
+            }
+          }
+        }
+
+        // Nota e Sensibilidade (centralizadas vertical e horizontalmente)
+        const notaX = margin + colWidths.indicador + colWidths.nota / 2;
+        const sensX = margin + colWidths.indicador + colWidths.nota + colWidths.sens / 2;
+        const centerY = y + rowHeight / 2 + 2;
+
+        pdf.text(nota, notaX, centerY, { align: "center" });
+        pdf.text(sens, sensX, centerY, { align: "center" });
+
+        y += rowHeight;
+      });
+    }
+  }
+
+  // =========================
+  // Rodapé
+  // =========================
+  const totalPages = pdf.getNumberOfPages();
+  const dataHoje = new Date().toLocaleDateString("pt-BR");
+
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(10);
+    pdf.setTextColor(100);
+    pdf.text(`Gerado em: ${dataHoje}`, margin, pdf.internal.pageSize.getHeight() - 10);
+    pdf.text(
+      `Página ${i} de ${totalPages}`,
+      pdf.internal.pageSize.getWidth() - margin,
+      pdf.internal.pageSize.getHeight() - 10,
+      { align: "right" }
+    );
+  }
+
+  // =========================
+  // Salvar PDF
+  // =========================
+  pdf.save(`relatorio_${nomeCurso}.pdf`);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
